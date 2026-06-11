@@ -6,9 +6,9 @@ from datetime import datetime
 # ============================================================
 #  НАСТРОЙКИ
 # ============================================================
-TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN",)
+TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
 CHANNEL_ID     = os.getenv("CHANNEL_ID", "-1003770552952")
-GEMINI_API_KEY = os.getenv("GEMINI_API_KEY",)
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 # ============================================================
 
 CITIES = [
