@@ -72,7 +72,7 @@ def generate_post(city, topic, emoji):
 Только текст поста, без пояснений."""
 
     payload = {
-        "model": "llama3-70b-8192", # Используем мощную Llama 3 70B
+        "model": "llama-3.3-70b-versatile", 
         "messages": [{"role": "user", "content": prompt}],
         "temperature": 0.7
     }
