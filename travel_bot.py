@@ -8,7 +8,7 @@ from datetime import datetime
 # ============================================================
 TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
 CHANNEL_ID     = os.getenv("CHANNEL_ID", "-1003770552952")
-GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
+GROQ_API_KEY   = os.getenv("GROQ_API_KEY") # Теперь используем ключ Groq
 # ============================================================
 
 CITIES = [
@@ -47,10 +47,12 @@ def get_topic_for_now():
 
 
 def generate_post(city, topic, emoji):
-    url = (
-        "https://generativelanguage.googleapis.com/v1beta/models/"
-        f"gemini-2.0-flash:generateContent?key={GEMINI_API_KEY}"
-    )
+    # Groq использует стандартный формат запросов, похожий на OpenAI
+    url = "https://api.groq.com/openai/v1/chat/completions"
+    headers = {
+        "Authorization": f"Bearer {GROQ_API_KEY}",
+        "Content-Type": "application/json"
+    }
 
     prompt = f"""Ты — редактор Telegram-канала о путешествиях "ATLAS Travel".
 
@@ -65,17 +67,24 @@ def generate_post(city, topic, emoji):
 - Конкретные советы или интересные факты
 - Заверши вовлекающим вопросом или призывом к действию
 - В конце добавь: #ATLASTravel #{city.replace(' ', '')}
+- Не используй форматирование текста (никаких звездочек, решеток или подчеркиваний). Пиши обычным текстом.
 
 Только текст поста, без пояснений."""
 
-    body = {"contents": [{"parts": [{"text": prompt}]}]}
-    response = requests.post(url, json=body, timeout=20)
+    payload = {
+        "model": "llama3-70b-8192", # Используем мощную Llama 3 70B
+        "messages": [{"role": "user", "content": prompt}],
+        "temperature": 0.7
+    }
+
+    response = requests.post(url, headers=headers, json=payload, timeout=20)
     data = response.json()
 
     try:
-        return data["candidates"][0]["content"]["parts"][0]["text"].strip()
+        # Парсим ответ в формате Groq/OpenAI
+        return data["choices"][0]["message"]["content"].strip()
     except (KeyError, IndexError):
-        print(f"❌ Ошибка Gemini: {data}")
+        print(f"❌ Ошибка Groq: {data}")
         return None
 
 
@@ -84,7 +93,7 @@ def send_to_telegram(text):
     payload = {
         "chat_id": CHANNEL_ID,
         "text": text,
-        "parse_mode": "Markdown", # Изменено здесь
+        "parse_mode": "HTML", # HTML оставили, так как запретили ИИ выдавать Markdown
     }
     response = requests.post(url, json=payload, timeout=15)
     result = response.json()
@@ -103,7 +112,7 @@ def main():
 
     print(f"🌍 Город: {city}")
     print(f"📌 Тема:  {emoji} {topic}")
-    print("⏳ Генерирую пост через Gemini...")
+    print("⏳ Генерирую пост через Groq (Llama 3)...")
 
     post_text = generate_post(city, topic, emoji)
     if not post_text:
