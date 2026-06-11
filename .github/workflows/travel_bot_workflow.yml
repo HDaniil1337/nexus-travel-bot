@@ -22,7 +22,7 @@ jobs:
         # Убедись, что тут перечислены ВСЕ нужные библиотеки
         run: pip install requests 
 
- - name: Run bot
+      - name: Run bot
         env:
           TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
           CHANNEL_ID: ${{ secrets.CHANNEL_ID }}
