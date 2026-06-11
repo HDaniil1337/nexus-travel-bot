@@ -1,29 +1,30 @@
-name:  Nexus Travel Bot
- 
+name: Nexus Travel Bot
+
 on:
   schedule:
-    - cron: '0 6 * * *'   # 08:00 Берлин (UTC+2)
-    - cron: '0 10 * * *'  # 12:00 Берлин
-    - cron: '0 15 * * *'  # 17:00 Берлин
-    - cron: '0 19 * * *'  # 21:00 Берлин
-  workflow_dispatch:       # ручной запуск для теста
- 
+    - cron: '0 6 * * *'  # Runs at 06:00 UTC (08:00 Берлин)
+    - cron: '0 10 * * *' # Runs at 10:00 UTC (12:00 Берлин)
+    - cron: '0 15 * * *' # Runs at 15:00 UTC (17:00 Берлин)
+    - cron: '0 19 * * *' # Runs at 19:00 UTC (21:00 Берлин)
+  workflow_dispatch:     # Ручной запуск для теста
+
 jobs:
   post:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
- 
+
       - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
- 
+
       - name: Install dependencies
-        run: pip install requests
- 
+        # Убедись, что тут перечислены ВСЕ нужные библиотеки
+        run: pip install requests 
+
       - name: Run bot
         env:
           TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
-          CHANNEL_ID:     ${{ secrets.CHANNEL_ID }}
+          CHANNEL_ID: ${{ secrets.CHANNEL_ID }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
         run: python travel_bot.py
