@@ -49,7 +49,7 @@ def get_topic_for_now():
 def generate_post(city, topic, emoji):
     url = (
         "https://generativelanguage.googleapis.com/v1beta/models/"
-        f"gemini-2.0-flash:generateContent?key={GEMINI_API_KEY}"
+        f"gemini-1.5-flash:generateContent?key={GEMINI_API_KEY}"
     )
 
     prompt = f"""Ты — редактор Telegram-канала о путешествиях "ATLAS Travel".
