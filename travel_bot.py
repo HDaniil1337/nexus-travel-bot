@@ -107,6 +107,7 @@ def send_to_telegram(text):
 
 
 def main():
+    print(f"Проверка токена: {str(TELEGRAM_TOKEN)[:5]}***")
     city  = random.choice(CITIES)
     topic, emoji = get_topic_for_now()
 
