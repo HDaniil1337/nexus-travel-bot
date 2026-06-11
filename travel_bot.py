@@ -84,7 +84,7 @@ def send_to_telegram(text):
     payload = {
         "chat_id": CHANNEL_ID,
         "text": text,
-        "parse_mode": "HTML",
+        "parse_mode": "Markdown", # Изменено здесь
     }
     response = requests.post(url, json=payload, timeout=15)
     result = response.json()
