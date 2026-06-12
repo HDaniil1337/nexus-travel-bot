@@ -1,4 +1,5 @@
 import os
+import io
 import requests
 import random
 from datetime import datetime
@@ -167,54 +168,70 @@ def generate_post(location, topic_name, emoji, topic_tag):
 
 
 def send_to_telegram(text, loc_tag, topic_tag, emoji, location):
-    # 👇 МЕНЯЕМ МЕТОД С sendMessage НА sendPhoto 👇
     url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendPhoto" 
     
-    safe_loc = urllib.parse.quote(loc_tag)
-    safe_topic = urllib.parse.quote(topic_tag)
-
     keyboard = {
         "inline_keyboard": [
             [
-                {"text": f"🌍 Посты: {loc_tag}", "url": f"https://t.me/{CHANNEL_USERNAME}?q={safe_loc}"},
-                {"text": f"{emoji} Тема: {topic_tag}", "url": f"https://t.me/{CHANNEL_USERNAME}?q={safe_topic}"}
+                {"text": f"🌍 Посты: {loc_tag}", "url": f"https://t.me/{CHANNEL_USERNAME}?q={urllib.parse.quote(loc_tag)}"},
+                {"text": f"{emoji} Тема: {topic_tag}", "url": f"https://t.me/{CHANNEL_USERNAME}?q={urllib.parse.quote(topic_tag)}"}
             ]
         ]
     }
 
-    # 🔥 МАГИЯ КАРТИНКИ 🔥
-    # Очищаем название локации для поиска (из "Рим (Италия)" делаем "Rome")
-    search_query = urllib.parse.quote(location.split('(')[0].strip())
-    # Ссылка на случайное красивое фото от Unsplash по этой локации
-    photo_url = f"https://source.unsplash.com/1200x800/?{search_query},travel,landscape"
-
-    payload = {
-        "chat_id": CHANNEL_ID,
-        "photo": photo_url,          # 👇 Ссылка на картинку 👇
-        "caption": text,             # 👇 Текст поста теперь становится подписью к фото 👇
-        "parse_mode": "HTML",
-        "reply_markup": keyboard
-    }
+    # 🔥 МАГИЯ ГЕНЕРАЦИИ ФОТО 🔥
+    HF_API_KEY = os.getenv("HF_API_KEY")
+    image_bytes = None
     
-    response = requests.post(url, json=payload, timeout=20)
-    result = response.json()
+    if HF_API_KEY:
+        # Модель, которую мы используем (Stable Diffusion XL - крутой бесплатный движок)
+        HF_API_URL = "https://api-inference.huggingface.co/models/stabilityai/stable-diffusion-xl-base-1.0"
+        headers = {"Authorization": f"Bearer {HF_API_KEY}"}
+        
+        # Промпт для картинки (генерируем на английском, так качественнее)
+        # Очищаем локацию и создаем запрос
+        query = location.split('(')[0].strip()
+        image_prompt = f"Beautiful professional travel photography of {query}, stunning landscape, photorealistic, 8k, detailed, cinematic lighting, national geographic style"
+        
+        try:
+            # Запрашиваем генерацию
+            res = requests.post(HF_API_URL, headers=headers, json={"inputs": image_prompt}, timeout=30)
+            if res.status_code == 200:
+                image_bytes = res.content
+        except Exception as e:
+            print(f"❌ Ошибка Hugging Face: {e}")
 
-    if result.get("ok"):
-        print(f"✅ Успешно опубликовано ФОТО с текстом и кнопками!")
-        return True
-    else:
-        # Если Telegram не смог загрузить фото с Unsplash (бывает редко), отправляем просто текст
-        print(f"⚠️ Не удалось загрузить фото. Ошибка: {result.get('description')}. Отправляю просто текст...")
-        fallback_url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
-        fallback_payload = {
+    # Если фото успешно сгенерировалось — отправляем фото с подписью
+    if image_bytes:
+        # Telegram принимает картинки только в виде файлов
+        files = {'photo': ('photo.jpg', io.BytesIO(image_bytes), 'image/jpeg')}
+        payload = {
             "chat_id": CHANNEL_ID,
-            "text": text,
+            "caption": text,             # Текст поста - подпись к фото
             "parse_mode": "HTML",
-            "disable_web_page_preview": True,
             "reply_markup": keyboard
         }
-        requests.post(fallback_url, json=fallback_payload, timeout=15)
-        return False
+        response = requests.post(url, files=files, data=payload, timeout=20)
+        result = response.json()
+
+        if result.get("ok"):
+            print(f"✅ Успешно опубликовано СГЕНЕРИРОВАННОЕ фото с текстом!")
+            return True
+        else:
+            print(f"⚠️ Ошибка Telegram при отправке фото (скорее всего текст слишком длинный): {result.get('description')}")
+
+    # Если генерация не удалась (бывает, если API перегружено) — отправляем просто текст
+    print("🔄 Генерация не удалась. Отправляю пост в текстовом формате...")
+    fallback_url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
+    fallback_payload = {
+        "chat_id": CHANNEL_ID,
+        "text": text,
+        "parse_mode": "HTML",
+        "disable_web_page_preview": True,
+        "reply_markup": keyboard
+    }
+    requests.post(fallback_url, json=fallback_payload, timeout=15)
+    return False
 
 
 def main():
@@ -234,10 +251,11 @@ def main():
         return
 
     print("\n--- ТЕКСТ ПОСТА ---")
+    # Убираем капс, если он вдруг остался в промпте (мы его убирали ранее)
     print(post_text)
     print("-------------------\n")
 
-    # 👇 ТЕПЕРЬ ПЕРЕДАЕМ И location, ЧТОБЫ СКРИПТ НАШЕЛ ФОТО 👇
+    # Передаем саму локацию (location), чтобы скрипт сгенерировал для нее фотку
     send_to_telegram(post_text, loc_tag, topic_tag, emoji, location)
 
 
