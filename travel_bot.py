@@ -134,8 +134,8 @@ def generate_post(location, topic_name, emoji, topic_tag):
 1. Заголовок с эмодзи (цепляющий).
 2. Художественное описание локации по теме (3-4 абзаца). ЖИРНЫМ шрифтом (<b>...</b>) выделяй названия мест, отелей, пляжей или заведений.
 3. Разделительная линия.
-4. Раздел "🧭 БАЗА ПУТЕШЕСТВЕННИКА":
-   - 💰 <b>Бюджет:</b> [1-3 эмодзи 💰] + уровень цен.
+4. Раздел "📝 Краткий гайд:":
+   - 💰 <b>Бюджет:</b> [1-5 эмодзи 💰] + уровень цен.
    - 📅 <b>Идеальный сезон:</b> [месяцы].
    - ✈️ <b>Где искать выгоду:</b> [ВНИМАНИЕ! Проанализируй регион {location}. Если это Азия — советуй Agoda и 12Go. Если Европа — Skyscanner и Omio. Если США/Северная Америка — Vrbo и Kayak. Если долгая зимовка/номады — Airbnb. Если СНГ — Aviasales. Напиши 2 самых подходящих сервиса под этот регион и оберни их названия в HTML-ссылки, например: <a href="https://www.agoda.com">Agoda</a>].
    - 💡 <b>Лайфхак:</b> [неочевидный совет по экономии/логистике/безопасности для {location} в рамках темы {topic_tag}].
@@ -157,20 +157,22 @@ def generate_post(location, topic_name, emoji, topic_tag):
     data = response.json()
 
     try:
-        return data["choices"][0]["message"]["content"].strip(), loc_tag
+        content = data["choices"][0]["message"]["content"].strip()
+        # 👇 Вот эта самая защита от звездочек 👇
+        content = content.replace("**", "")
+        return content, loc_tag
     except (KeyError, IndexError):
         print(f"❌ Ошибка Groq: {data}")
         return None, None
 
 
-def send_to_telegram(text, loc_tag, topic_tag, emoji):
-    url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
+def send_to_telegram(text, loc_tag, topic_tag, emoji, location):
+    # 👇 МЕНЯЕМ МЕТОД С sendMessage НА sendPhoto 👇
+    url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendPhoto" 
     
-    # Подготавливаем хэштеги для безопасных URL ссылок
     safe_loc = urllib.parse.quote(loc_tag)
     safe_topic = urllib.parse.quote(topic_tag)
 
-    # Интерактивные кнопки навигации
     keyboard = {
         "inline_keyboard": [
             [
@@ -180,29 +182,44 @@ def send_to_telegram(text, loc_tag, topic_tag, emoji):
         ]
     }
 
+    # 🔥 МАГИЯ КАРТИНКИ 🔥
+    # Очищаем название локации для поиска (из "Рим (Италия)" делаем "Rome")
+    search_query = urllib.parse.quote(location.split('(')[0].strip())
+    # Ссылка на случайное красивое фото от Unsplash по этой локации
+    photo_url = f"https://source.unsplash.com/1200x800/?{search_query},travel,landscape"
+
     payload = {
         "chat_id": CHANNEL_ID,
-        "text": text,
+        "photo": photo_url,          # 👇 Ссылка на картинку 👇
+        "caption": text,             # 👇 Текст поста теперь становится подписью к фото 👇
         "parse_mode": "HTML",
-        "disable_web_page_preview": True,
         "reply_markup": keyboard
     }
     
-    response = requests.post(url, json=payload, timeout=15)
+    response = requests.post(url, json=payload, timeout=20)
     result = response.json()
 
     if result.get("ok"):
-        print(f"✅ Успешно опубликовано с кнопками навигации!")
+        print(f"✅ Успешно опубликовано ФОТО с текстом и кнопками!")
         return True
     else:
-        print(f"❌ Ошибка Telegram: {result.get('description')}")
+        # Если Telegram не смог загрузить фото с Unsplash (бывает редко), отправляем просто текст
+        print(f"⚠️ Не удалось загрузить фото. Ошибка: {result.get('description')}. Отправляю просто текст...")
+        fallback_url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
+        fallback_payload = {
+            "chat_id": CHANNEL_ID,
+            "text": text,
+            "parse_mode": "HTML",
+            "disable_web_page_preview": True,
+            "reply_markup": keyboard
+        }
+        requests.post(fallback_url, json=fallback_payload, timeout=15)
         return False
 
 
 def main():
     topic_name, emoji, topic_tag = get_topic_for_now()
     
-    # Умный выбор локации (исключения для специфических тем, для остальных — микс)
     if topic_tag in STRICT_LOCATIONS:
         location = random.choice(STRICT_LOCATIONS[topic_tag])
     else:
@@ -220,7 +237,8 @@ def main():
     print(post_text)
     print("-------------------\n")
 
-    send_to_telegram(post_text, loc_tag, topic_tag, emoji)
+    # 👇 ТЕПЕРЬ ПЕРЕДАЕМ И location, ЧТОБЫ СКРИПТ НАШЕЛ ФОТО 👇
+    send_to_telegram(post_text, loc_tag, topic_tag, emoji, location)
 
 
 if __name__ == "__main__":
